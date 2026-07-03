@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "mamaguebo-admin",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-01",
+  "r2_buckets": [
+    {
+      "binding": "IMAGES",
+      "bucket_name": "mamaguebo-images"
+    }
+  ],
+  "vars": {
+    "PUBLIC_IMAGE_URL": "https://cdn.mamaguebo.com/image.webp",
+    "IMAGE_KEY": "image.webp",
+    "CF_ZONE_ID": ""
+  }
+  // After creating the R2 bucket, deploy then add a custom domain in the dashboard:
+  // Workers & Pages → mamaguebo-admin → Settings → Domains → admin.mamaguebo.com
+  //
+  // Or uncomment and set your zone name:
+  // "routes": [{ "pattern": "admin.mamaguebo.com/*", "zone_name": "mamaguebo.com" }]
+}
