@@ -1,9 +1,12 @@
 {
-  "name": "mamaguebo-admin",
+  "name": "image-site-workers",
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
+    "dev:malditomarico": "wrangler dev --env malditomarico",
     "deploy": "wrangler deploy",
+    "deploy:malditomarico": "wrangler deploy --env malditomarico",
+    "deploy:all": "wrangler deploy && wrangler deploy --env malditomarico",
     "types": "wrangler types"
   },
   "devDependencies": {

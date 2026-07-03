@@ -1,5 +1,6 @@
 export interface Env {
   IMAGES: R2Bucket;
+  SITE_NAME: string;
   PUBLIC_IMAGE_URL: string;
   IMAGE_KEY: string;
   CF_ZONE_ID?: string;
@@ -23,7 +24,7 @@ export default {
     }
 
     if (request.method === "GET" && (pathname === "/" || pathname === "")) {
-      return htmlResponse(publicPage(env.PUBLIC_IMAGE_URL));
+      return htmlResponse(publicPage(env.SITE_NAME, env.PUBLIC_IMAGE_URL));
     }
 
     if (
@@ -108,13 +109,13 @@ async function purgeCdnCache(env: Env): Promise<void> {
   );
 }
 
-function publicPage(imageUrl: string): string {
+function publicPage(siteName: string, imageUrl: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>mamaguebo</title>
+  <title>${siteName}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {

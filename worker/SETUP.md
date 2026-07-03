@@ -1,91 +1,69 @@
-# Mamaguebo
+# Image site workers
 
-Everything runs on Cloudflare Workers + R2.
+One codebase, multiple domains via Wrangler environments. Each site has its own Worker, R2 bucket, and CDN URL.
 
-| URL | What |
-|-----|------|
-| `mamaguebo.com` | Public page (Worker) |
-| `mamaguebo.com/admin` | Upload UI (Worker, protect with Zero Trust) |
-| `cdn.mamaguebo.com/image.webp` | Image file (R2) |
+| Site | Worker | R2 bucket | CDN |
+|------|--------|-----------|-----|
+| mamaguebo.com | `mamaguebo` | `mamaguebo-images` | `cdn.mamaguebo.com/image.webp` |
+| malditomarico.com | `malditomarico` | `malditomarico-images` | `cdn.malditomarico.com/image.webp` |
 
 ## Deploy
 
 ```bash
 cd worker
 npm install
-npx wrangler login
-npm run deploy
+npx wrangler login   # first time
+
+npm run deploy                  # mamaguebo only
+npm run deploy:malditomarico    # malditomarico only
+npm run deploy:all              # both
 ```
 
-## 1. R2 bucket
+## Per-site setup checklist
 
-1. **R2** → bucket `mamaguebo-images`
-2. **Settings** → **Custom Domains** → `cdn.mamaguebo.com`
+Repeat for each domain (replace names accordingly):
 
-Seed an image:
+1. **R2 bucket** — create in Cloudflare (or `npx wrangler r2 bucket create BUCKET_NAME`)
+2. **CDN DNS** — CNAME `cdn` → `yourdomain.com` (proxied), or R2 custom domain
+3. **Seed image** — `npx wrangler r2 object put BUCKET/image.webp --file=... --remote`
+4. **Deploy worker** — `npm run deploy` or `npm run deploy:malditomarico`
+5. **Zero Trust** — protect `yourdomain.com/admin`
+6. **Cache purge (optional)** — set `CF_ZONE_ID` in `wrangler.jsonc`, then `npx wrangler secret put CF_API_TOKEN` (add `--env malditomarico` for the second site)
+
+## malditomarico.com first-time setup
 
 ```bash
 cd worker
-npx wrangler r2 object put mamaguebo-images/image.webp \
+
+npx wrangler r2 bucket create malditomarico-images
+
+# optional: seed first image
+npx wrangler r2 object put malditomarico-images/image.webp \
   --file=../assets/IMG_1959.webp \
   --content-type=image/webp \
   --remote
+
+npm run deploy:malditomarico
 ```
 
-## 2. CDN subdomain (`cdn.mamaguebo.com`)
+DNS in Cloudflare for **malditomarico.com**:
 
-The image file exists in R2, but the CDN hostname needs DNS.
+- `malditomarico.com` — on Cloudflare (proxied)
+- `cdn` CNAME → `malditomarico.com` (proxied)
 
-**Option A — DNS + Worker (quick)**
-
-1. Cloudflare → **DNS** → **Add record**
-2. Type: **CNAME**, Name: `cdn`, Target: `mamaguebo.com`, Proxy: **on** (orange cloud)
-3. Deploy the worker (serves `/image.webp` from R2 on the cdn subdomain)
-
-**Option B — R2 custom domain (best for delivery)**
+Secrets for malditomarico use the `--env` flag:
 
 ```bash
-cd worker
-npx wrangler r2 bucket domain add mamaguebo-images \
-  --domain cdn.mamaguebo.com \
-  --zone-id YOUR_ZONE_ID \
-  --force
+npx wrangler secret put CF_API_TOKEN --env malditomarico
 ```
-
-Zone ID: Cloudflare → **mamaguebo.com** → **Overview** → right sidebar.
-
-R2 custom domain creates DNS automatically. If you use Option B, remove the Worker `cdn.mamaguebo.com` route to avoid conflicts.
-
-## 3. DNS for the main site
-
-`mamaguebo.com` must be on Cloudflare (orange cloud). The Worker route handles all paths — no GitHub Pages origin needed.
-
-## 3. Cache purge (optional)
-
-Put your zone ID in `CF_ZONE_ID` in `wrangler.jsonc`, then:
-
-```bash
-npx wrangler secret put CF_API_TOKEN
-npm run deploy
-```
-
-## 4. Zero Trust
-
-**Access** → **Applications** → **Self-hosted**
-
-- Domain: `mamaguebo.com`
-- Path: `/admin`
-
-## 5. Turn off GitHub Pages
-
-Repo → **Settings** → **Pages** → source **None**. Remove `mamaguebo.com` from GitHub custom domain if set.
 
 ## Local dev
 
 ```bash
-cd worker
-npm run dev
+npm run dev                    # mamaguebo config
+npm run dev:malditomarico      # malditomarico config
 ```
 
-- `http://localhost:8787/` — public page
-- `http://localhost:8787/admin` — admin
+## Adding another site later
+
+Copy the `malditomarico` block in `wrangler.jsonc` → `env`, change domain/bucket names, add a `deploy:newsite` script.

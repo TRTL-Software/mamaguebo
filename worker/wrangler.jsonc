@@ -10,6 +10,7 @@
     }
   ],
   "vars": {
+    "SITE_NAME": "mamaguebo",
     "PUBLIC_IMAGE_URL": "https://cdn.mamaguebo.com/image.webp",
     "IMAGE_KEY": "image.webp",
     "CF_ZONE_ID": ""
@@ -17,5 +18,26 @@
   "routes": [
     { "pattern": "mamaguebo.com/*", "zone_name": "mamaguebo.com" },
     { "pattern": "cdn.mamaguebo.com/*", "zone_name": "mamaguebo.com" }
-  ]
+  ],
+  "env": {
+    "malditomarico": {
+      "name": "malditomarico",
+      "r2_buckets": [
+        {
+          "binding": "IMAGES",
+          "bucket_name": "malditomarico-images"
+        }
+      ],
+      "vars": {
+        "SITE_NAME": "malditomarico",
+        "PUBLIC_IMAGE_URL": "https://cdn.malditomarico.com/image.webp",
+        "IMAGE_KEY": "image.webp",
+        "CF_ZONE_ID": ""
+      },
+      "routes": [
+        { "pattern": "malditomarico.com/*", "zone_name": "malditomarico.com" },
+        { "pattern": "cdn.malditomarico.com/*", "zone_name": "malditomarico.com" }
+      ]
+    }
+  }
 }
