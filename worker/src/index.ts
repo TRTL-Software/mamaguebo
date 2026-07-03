@@ -16,18 +16,45 @@ const ALLOWED_TYPES = new Set([
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const { pathname } = url;
 
-    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/admin")) {
+    if (request.method === "GET" && pathname === `/${env.IMAGE_KEY}`) {
+      return serveImage(env);
+    }
+
+    if (request.method === "GET" && (pathname === "/" || pathname === "")) {
+      return htmlResponse(publicPage(env.PUBLIC_IMAGE_URL));
+    }
+
+    if (
+      request.method === "GET" &&
+      (pathname === "/admin" || pathname === "/admin/")
+    ) {
       return htmlResponse(adminPage(env.PUBLIC_IMAGE_URL));
     }
 
-    if (request.method === "POST" && url.pathname === "/upload") {
+    if (request.method === "POST" && pathname === "/admin/upload") {
       return handleUpload(request, env);
     }
 
     return new Response("Not found", { status: 404 });
   },
 };
+
+async function serveImage(env: Env): Promise<Response> {
+  const object = await env.IMAGES.get(env.IMAGE_KEY);
+  if (!object) {
+    return new Response("Image not found", { status: 404 });
+  }
+
+  return new Response(object.body, {
+    headers: {
+      "Content-Type":
+        object.httpMetadata?.contentType ?? "application/octet-stream",
+      "Cache-Control": object.httpMetadata?.cacheControl ?? "public, max-age=300",
+    },
+  });
+}
 
 async function handleUpload(request: Request, env: Env): Promise<Response> {
   const form = await request.formData();
@@ -79,6 +106,35 @@ async function purgeCdnCache(env: Env): Promise<void> {
       body: JSON.stringify({ files: [env.PUBLIC_IMAGE_URL] }),
     },
   );
+}
+
+function publicPage(imageUrl: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mamaguebo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #111;
+    }
+    img {
+      max-width: 90vw;
+      max-height: 90vh;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>
+  <img src="${imageUrl}" alt="">
+</body>
+</html>`;
 }
 
 function adminPage(imageUrl: string): string {
@@ -180,7 +236,7 @@ function adminPage(imageUrl: string): string {
       submit.disabled = true;
 
       try {
-        const res = await fetch("/upload", { method: "POST", body: new FormData(form) });
+        const res = await fetch("/admin/upload", { method: "POST", body: new FormData(form) });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || "Upload failed");
         status.textContent = "Uploaded. Live site will update shortly.";

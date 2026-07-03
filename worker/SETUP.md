@@ -1,37 +1,14 @@
-# Mamaguebo admin worker
+# Mamaguebo
 
-Uploads replace a single image in R2. The public site always loads:
+Everything runs on Cloudflare Workers + R2.
 
-`https://cdn.mamaguebo.com/image.webp`
+| URL | What |
+|-----|------|
+| `mamaguebo.com` | Public page (Worker) |
+| `mamaguebo.com/admin` | Upload UI (Worker, protect with Zero Trust) |
+| `cdn.mamaguebo.com/image.webp` | Image file (R2) |
 
-## Architecture
-
-- **mamaguebo.com** — GitHub Pages (static, fixed CDN URL in `index.html`)
-- **cdn.mamaguebo.com** — R2 custom domain (serves the image)
-- **admin.mamaguebo.com** — this Worker (upload UI + API)
-- **Cloudflare Zero Trust** — protects `admin.mamaguebo.com`
-
-## 1. Create the R2 bucket
-
-1. Cloudflare dashboard → **R2** → **Create bucket**
-2. Name: `mamaguebo-images` (must match `wrangler.jsonc`)
-3. Open the bucket → **Settings** → **Custom Domains** → add `cdn.mamaguebo.com`
-4. Cloudflare adds the DNS record automatically
-
-## 2. Seed the first image (optional)
-
-From the repo root:
-
-```bash
-npx wrangler r2 object put mamaguebo-images/image.webp \
-  --file=assets/IMG_1959.webp \
-  --content-type=image/webp \
-  --remote
-```
-
-Or upload via the admin UI after deploy.
-
-## 3. Deploy the Worker
+## Deploy
 
 ```bash
 cd worker
@@ -40,41 +17,68 @@ npx wrangler login
 npm run deploy
 ```
 
-Add the custom domain:
+## 1. R2 bucket
 
-1. **Workers & Pages** → **mamaguebo-admin** → **Settings** → **Domains & Routes**
-2. Add **Custom Domain**: `admin.mamaguebo.com`
+1. **R2** → bucket `mamaguebo-images`
+2. **Settings** → **Custom Domains** → `cdn.mamaguebo.com`
 
-## 4. Cache purge secret (recommended)
-
-So the CDN shows the new image immediately after upload:
-
-1. Cloudflare → your profile → **API Tokens** → create token with **Zone → Cache Purge**
-2. Copy your zone ID from **mamaguebo.com** → **Overview** (right sidebar) into `CF_ZONE_ID` in `wrangler.jsonc`
+Seed an image:
 
 ```bash
 cd worker
-npx wrangler secret put CF_API_TOKEN
-# paste the token
+npx wrangler r2 object put mamaguebo-images/image.webp \
+  --file=../assets/IMG_1959.webp \
+  --content-type=image/webp \
+  --remote
+```
 
+## 2. CDN subdomain (`cdn.mamaguebo.com`)
+
+The image file exists in R2, but the CDN hostname needs DNS.
+
+**Option A — DNS + Worker (quick)**
+
+1. Cloudflare → **DNS** → **Add record**
+2. Type: **CNAME**, Name: `cdn`, Target: `mamaguebo.com`, Proxy: **on** (orange cloud)
+3. Deploy the worker (serves `/image.webp` from R2 on the cdn subdomain)
+
+**Option B — R2 custom domain (best for delivery)**
+
+```bash
+cd worker
+npx wrangler r2 bucket domain add mamaguebo-images \
+  --domain cdn.mamaguebo.com \
+  --zone-id YOUR_ZONE_ID \
+  --force
+```
+
+Zone ID: Cloudflare → **mamaguebo.com** → **Overview** → right sidebar.
+
+R2 custom domain creates DNS automatically. If you use Option B, remove the Worker `cdn.mamaguebo.com` route to avoid conflicts.
+
+## 3. DNS for the main site
+
+`mamaguebo.com` must be on Cloudflare (orange cloud). The Worker route handles all paths — no GitHub Pages origin needed.
+
+## 3. Cache purge (optional)
+
+Put your zone ID in `CF_ZONE_ID` in `wrangler.jsonc`, then:
+
+```bash
+npx wrangler secret put CF_API_TOKEN
 npm run deploy
 ```
 
-Cache purge is optional — without it, updates may take a few minutes due to CDN caching.
+## 4. Zero Trust
 
-## 5. Cloudflare Zero Trust
+**Access** → **Applications** → **Self-hosted**
 
-1. **Zero Trust** → **Access** → **Applications** → **Add an application**
-2. Type: **Self-hosted**
-3. Application domain: `admin.mamaguebo.com`
-4. Policy: allow your email (or Google/GitHub login)
-5. Save
+- Domain: `mamaguebo.com`
+- Path: `/admin`
 
-Only you can reach the admin upload page.
+## 5. Turn off GitHub Pages
 
-## 6. Push the site change
-
-Commit and push the updated `index.html` so GitHub Pages uses the CDN URL.
+Repo → **Settings** → **Pages** → source **None**. Remove `mamaguebo.com` from GitHub custom domain if set.
 
 ## Local dev
 
@@ -83,8 +87,5 @@ cd worker
 npm run dev
 ```
 
-Visit `http://localhost:8787/admin`. Local dev uses a simulated R2 bucket unless you pass `--remote`.
-
-## Changing the CDN URL
-
-Edit `PUBLIC_IMAGE_URL` and `IMAGE_KEY` in `wrangler.jsonc`, then update `index.html` to match.
+- `http://localhost:8787/` — public page
+- `http://localhost:8787/admin` — admin
